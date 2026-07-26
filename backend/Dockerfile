@@ -6,11 +6,11 @@ FROM python:3.9-slim-buster
 WORKDIR /app/backend
 
 # 复制依赖文件并安装依赖
-COPY ./backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制整个应用代码
-COPY ./backend .
+COPY . .
 
 # 暴露应用端口
 EXPOSE 8000
