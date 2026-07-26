@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm ci   # 建议用 npm ci 替代 npm install，更稳定
+        run: npm install
 
       # 方案一（推荐）：使用 package.json 中的 build 脚本
       - name: Build Vue.js project
