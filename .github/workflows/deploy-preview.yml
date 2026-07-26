@@ -17,19 +17,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18 # 使用项目兼容的 Node.js 版本
+          node-version: 18
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm ci   # 建议用 npm ci 替代 npm install，更稳定
 
+      # 方案一（推荐）：使用 package.json 中的 build 脚本
       - name: Build Vue.js project
         working-directory: ./frontend
-        run: npx vite build
+        run: npm run build
+
+      # 方案二（如果你坚持用 npx vite build，取消下面注释）：
+      # - name: Fix permission and build
+      #   working-directory: ./frontend
+      #   run: |
+      #     chmod +x ./node_modules/.bin/vite
+      #     npx vite build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4   # 建议升级到 v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./frontend/dist
-          # CNAME: example.com # 如果您有自定义域名，可以在这里配置
