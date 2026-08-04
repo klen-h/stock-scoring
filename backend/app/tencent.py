@@ -191,3 +191,67 @@ def search_stocks(keyword: str) -> list:
                 if v["price"] > 0:
                     results.append({"code": v["code"], "name": v["name"]})
     return results
+
+
+MIN_MARKET_CAP_YI = 50  # 最小市值（亿元），低于此值视为小市值
+
+
+def is_gem_stock(code: str) -> bool:
+    """判断是否为创业板（300xxx, 301xxx）"""
+    return code.startswith("300") or code.startswith("301")
+
+
+def is_star_market_stock(code: str) -> bool:
+    """判断是否为科创板（688xxx）"""
+    return code.startswith("688")
+
+
+def is_st_stock(name: str) -> bool:
+    """判断是否为ST股（包括ST、*ST、SST等）"""
+    return "ST" in name.upper()
+
+
+def is_small_cap_stock(market_cap_wan: float, min_yi: float = MIN_MARKET_CAP_YI) -> bool:
+    """判断是否为小市值股票。market_cap_wan 单位为万元，min_yi 单位为亿元。"""
+    if not market_cap_wan or market_cap_wan <= 0:
+        return True
+    cap_yi = market_cap_wan / 10000
+    return cap_yi < min_yi
+
+
+def is_loss_stock(pe: float) -> bool:
+    """判断是否为亏损股票（PE <= 0）"""
+    return pe is None or pe <= 0
+
+
+def filter_quality_stocks(stocks: list[dict]) -> list[dict]:
+    """
+    过滤掉创业板、科创板、ST、小市值、亏损个股，保留优质标的。
+    
+    过滤条件:
+      - 排除创业板（300/301开头）
+      - 排除科创板（688开头）
+      - 排除ST股（名称含ST）
+      - 排除小市值（< 50亿）
+      - 排除亏损股（PE <= 0）
+    """
+    result = []
+    for s in stocks:
+        code = s.get("code", "")
+        name = s.get("name", "")
+        cap = s.get("market_cap", 0)
+        pe = s.get("pe", 0)
+
+        if is_gem_stock(code):
+            continue
+        if is_star_market_stock(code):
+            continue
+        if is_st_stock(name):
+            continue
+        if is_small_cap_stock(cap):
+            continue
+        if is_loss_stock(pe):
+            continue
+
+        result.append(s)
+    return result

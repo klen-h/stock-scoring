@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, BackgroundTasks
 from datetime import datetime
 from app.tencent import (
     get_index, refresh_all_stocks, get_kline,
-    _cache, BATCH_SIZE, _ALL_CODES,
+    _cache, BATCH_SIZE, _ALL_CODES, filter_quality_stocks,
 )
 
 router = APIRouter()
@@ -77,12 +77,14 @@ async def market_realtime(
     page: int = 1, size: int = 50,
     sort_by: str = "change_pct", order: str = "desc"
 ):
-    """全A股实时行情分页"""
+    """全A股实时行情分页（已过滤创业板/科创板/ST/小市值/亏损）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "page": page, "size": size, "cache_status": "loading"}
 
     stock_list = list(stocks.values())
+    # 过滤创业板/科创板/ST/小市值/亏损
+    stock_list = filter_quality_stocks(stock_list)
 
     # 排序
     sort_map = {

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, BackgroundTasks
 from app.scoring.engine import ScoreEngine
-from app.tencent import get_stock, get_kline, _cache, get_stocks_batch
+from app.tencent import get_stock, get_kline, _cache, get_stocks_batch, filter_quality_stocks
 
 router = APIRouter()
 engine = ScoreEngine()
@@ -59,7 +59,7 @@ async def score_top(
     limit: int = Query(default=50, ge=10, le=200),
     background_tasks: BackgroundTasks = None,
 ):
-    """对全量缓存的股票批量评分，返回 Top N"""
+    """对全量缓存的股票批量评分，返回 Top N（已过滤创业板/科创板/ST/小市值/亏损）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         # 触发后台刷新
@@ -71,6 +71,8 @@ async def score_top(
     stock_list = list(stocks.values())
     # 过滤掉停牌/异常
     valid = [s for s in stock_list if s.get("price", 0) > 0 and s.get("change_pct") is not None]
+    # 过滤创业板/科创板/ST/小市值/亏损
+    valid = filter_quality_stocks(valid)
 
     results = engine.score_batch(valid)
     top = results[:limit]
@@ -92,12 +94,13 @@ async def score_top(
 async def score_bottom(
     limit: int = Query(default=50, ge=10, le=200),
 ):
-    """返回评分最低的 N 只（适合做空/回避）"""
+    """返回评分最低的 N 只（适合做空/回避，已过滤创业板/科创板/ST/小市值/亏损）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "cache_status": "loading"}
 
     stock_list = [s for s in stocks.values() if s.get("price", 0) > 0]
+    stock_list = filter_quality_stocks(stock_list)
     results = engine.score_batch(stock_list)
     bottom = results[-limit:]
     bottom.reverse()  # 最低分排最前
@@ -120,12 +123,13 @@ async def score_by_signal(
     signal: str = Query(default="买入", description="信号类型：强烈买入/买入/观望/卖出/强烈卖出"),
     limit: int = Query(default=50, ge=10, le=200),
 ):
-    """按信号类型筛选"""
+    """按信号类型筛选（已过滤创业板/科创板/ST/小市值/亏损）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "signal": signal}
 
     stock_list = [s for s in stocks.values() if s.get("price", 0) > 0]
+    stock_list = filter_quality_stocks(stock_list)
     results = engine.score_batch(stock_list)
     filtered = [r for r in results if r.signal == signal][:limit]
 
