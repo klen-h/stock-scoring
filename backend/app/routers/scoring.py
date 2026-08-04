@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, BackgroundTasks
 from app.scoring.engine import ScoreEngine
-from app.tencent import get_stock, get_kline, _cache, get_stocks_batch, filter_quality_stocks
+from app.tencent import get_stock, get_kline, _cache, get_stocks_batch, filter_quality_stocks, DEFAULT_MIN_MARKET_CAP_YI
 
 router = APIRouter()
 engine = ScoreEngine()
@@ -57,9 +57,15 @@ async def score_single(symbol: str):
 @router.get("/batch/top")
 async def score_top(
     limit: int = Query(default=50, ge=10, le=200),
+    exclude_gem: bool = Query(default=True, description="排除创业板"),
+    exclude_star: bool = Query(default=True, description="排除科创板"),
+    exclude_st: bool = Query(default=True, description="排除ST股"),
+    exclude_small_cap: bool = Query(default=True, description="排除小市值"),
+    exclude_loss: bool = Query(default=True, description="排除亏损股"),
+    min_market_cap_yi: float = Query(default=DEFAULT_MIN_MARKET_CAP_YI, ge=0, description="最小市值阈值(亿元)"),
     background_tasks: BackgroundTasks = None,
 ):
-    """对全量缓存的股票批量评分，返回 Top N（已过滤创业板/科创板/ST/小市值/亏损）"""
+    """对全量缓存的股票批量评分，返回 Top N（默认已过滤创业板/科创板/ST/小市值/亏损，可通过参数调整）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         # 触发后台刷新
@@ -71,8 +77,16 @@ async def score_top(
     stock_list = list(stocks.values())
     # 过滤掉停牌/异常
     valid = [s for s in stock_list if s.get("price", 0) > 0 and s.get("change_pct") is not None]
-    # 过滤创业板/科创板/ST/小市值/亏损
-    valid = filter_quality_stocks(valid)
+    # 过滤创业板/科创板/ST/小市值/亏损（参数可配置）
+    valid = filter_quality_stocks(
+        valid,
+        exclude_gem=exclude_gem,
+        exclude_star=exclude_star,
+        exclude_st=exclude_st,
+        exclude_small_cap=exclude_small_cap,
+        exclude_loss=exclude_loss,
+        min_market_cap_yi=min_market_cap_yi,
+    )
 
     results = engine.score_batch(valid)
     top = results[:limit]
@@ -93,14 +107,28 @@ async def score_top(
 @router.get("/batch/bottom")
 async def score_bottom(
     limit: int = Query(default=50, ge=10, le=200),
+    exclude_gem: bool = Query(default=True, description="排除创业板"),
+    exclude_star: bool = Query(default=True, description="排除科创板"),
+    exclude_st: bool = Query(default=True, description="排除ST股"),
+    exclude_small_cap: bool = Query(default=True, description="排除小市值"),
+    exclude_loss: bool = Query(default=True, description="排除亏损股"),
+    min_market_cap_yi: float = Query(default=DEFAULT_MIN_MARKET_CAP_YI, ge=0, description="最小市值阈值(亿元)"),
 ):
-    """返回评分最低的 N 只（适合做空/回避，已过滤创业板/科创板/ST/小市值/亏损）"""
+    """返回评分最低的 N 只（适合做空/回避，默认已过滤创业板/科创板/ST/小市值/亏损，可通过参数调整）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "cache_status": "loading"}
 
     stock_list = [s for s in stocks.values() if s.get("price", 0) > 0]
-    stock_list = filter_quality_stocks(stock_list)
+    stock_list = filter_quality_stocks(
+        stock_list,
+        exclude_gem=exclude_gem,
+        exclude_star=exclude_star,
+        exclude_st=exclude_st,
+        exclude_small_cap=exclude_small_cap,
+        exclude_loss=exclude_loss,
+        min_market_cap_yi=min_market_cap_yi,
+    )
     results = engine.score_batch(stock_list)
     bottom = results[-limit:]
     bottom.reverse()  # 最低分排最前
@@ -122,14 +150,28 @@ async def score_bottom(
 async def score_by_signal(
     signal: str = Query(default="买入", description="信号类型：强烈买入/买入/观望/卖出/强烈卖出"),
     limit: int = Query(default=50, ge=10, le=200),
+    exclude_gem: bool = Query(default=True, description="排除创业板"),
+    exclude_star: bool = Query(default=True, description="排除科创板"),
+    exclude_st: bool = Query(default=True, description="排除ST股"),
+    exclude_small_cap: bool = Query(default=True, description="排除小市值"),
+    exclude_loss: bool = Query(default=True, description="排除亏损股"),
+    min_market_cap_yi: float = Query(default=DEFAULT_MIN_MARKET_CAP_YI, ge=0, description="最小市值阈值(亿元)"),
 ):
-    """按信号类型筛选（已过滤创业板/科创板/ST/小市值/亏损）"""
+    """按信号类型筛选（默认已过滤创业板/科创板/ST/小市值/亏损，可通过参数调整）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "signal": signal}
 
     stock_list = [s for s in stocks.values() if s.get("price", 0) > 0]
-    stock_list = filter_quality_stocks(stock_list)
+    stock_list = filter_quality_stocks(
+        stock_list,
+        exclude_gem=exclude_gem,
+        exclude_star=exclude_star,
+        exclude_st=exclude_st,
+        exclude_small_cap=exclude_small_cap,
+        exclude_loss=exclude_loss,
+        min_market_cap_yi=min_market_cap_yi,
+    )
     results = engine.score_batch(stock_list)
     filtered = [r for r in results if r.signal == signal][:limit]
 

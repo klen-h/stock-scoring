@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, BackgroundTasks
 from datetime import datetime
 from app.tencent import (
     get_index, refresh_all_stocks, get_kline,
-    _cache, BATCH_SIZE, _ALL_CODES, filter_quality_stocks,
+    _cache, BATCH_SIZE, _ALL_CODES, filter_quality_stocks, DEFAULT_MIN_MARKET_CAP_YI,
 )
 
 router = APIRouter()
@@ -75,16 +75,30 @@ async def market_overview(background_tasks: BackgroundTasks):
 @router.get("/realtime")
 async def market_realtime(
     page: int = 1, size: int = 50,
-    sort_by: str = "change_pct", order: str = "desc"
+    sort_by: str = "change_pct", order: str = "desc",
+    exclude_gem: bool = Query(default=True, description="排除创业板"),
+    exclude_star: bool = Query(default=True, description="排除科创板"),
+    exclude_st: bool = Query(default=True, description="排除ST股"),
+    exclude_small_cap: bool = Query(default=True, description="排除小市值"),
+    exclude_loss: bool = Query(default=True, description="排除亏损股"),
+    min_market_cap_yi: float = Query(default=DEFAULT_MIN_MARKET_CAP_YI, ge=0, description="最小市值阈值(亿元)"),
 ):
-    """全A股实时行情分页（已过滤创业板/科创板/ST/小市值/亏损）"""
+    """全A股实时行情分页（默认已过滤创业板/科创板/ST/小市值/亏损，可通过参数调整）"""
     stocks = _cache.get("stocks", {})
     if not stocks:
         return {"data": [], "total": 0, "page": page, "size": size, "cache_status": "loading"}
 
     stock_list = list(stocks.values())
-    # 过滤创业板/科创板/ST/小市值/亏损
-    stock_list = filter_quality_stocks(stock_list)
+    # 过滤创业板/科创板/ST/小市值/亏损（参数可配置）
+    stock_list = filter_quality_stocks(
+        stock_list,
+        exclude_gem=exclude_gem,
+        exclude_star=exclude_star,
+        exclude_st=exclude_st,
+        exclude_small_cap=exclude_small_cap,
+        exclude_loss=exclude_loss,
+        min_market_cap_yi=min_market_cap_yi,
+    )
 
     # 排序
     sort_map = {

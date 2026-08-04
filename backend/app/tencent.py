@@ -193,7 +193,7 @@ def search_stocks(keyword: str) -> list:
     return results
 
 
-MIN_MARKET_CAP_YI = 50  # 最小市值（亿元），低于此值视为小市值
+DEFAULT_MIN_MARKET_CAP_YI = 20  # 默认最小市值（亿元），低于此值视为小市值
 
 
 def is_gem_stock(code: str) -> bool:
@@ -211,7 +211,7 @@ def is_st_stock(name: str) -> bool:
     return "ST" in name.upper()
 
 
-def is_small_cap_stock(market_cap_wan: float, min_yi: float = MIN_MARKET_CAP_YI) -> bool:
+def is_small_cap_stock(market_cap_wan: float, min_yi: float = DEFAULT_MIN_MARKET_CAP_YI) -> bool:
     """判断是否为小市值股票。market_cap_wan 单位为万元，min_yi 单位为亿元。"""
     if not market_cap_wan or market_cap_wan <= 0:
         return True
@@ -224,16 +224,30 @@ def is_loss_stock(pe: float) -> bool:
     return pe is None or pe <= 0
 
 
-def filter_quality_stocks(stocks: list[dict]) -> list[dict]:
+def filter_quality_stocks(
+    stocks: list[dict],
+    *,
+    exclude_gem: bool = True,
+    exclude_star: bool = True,
+    exclude_st: bool = True,
+    exclude_small_cap: bool = True,
+    exclude_loss: bool = True,
+    min_market_cap_yi: float = DEFAULT_MIN_MARKET_CAP_YI,
+) -> list[dict]:
     """
     过滤掉创业板、科创板、ST、小市值、亏损个股，保留优质标的。
-    
-    过滤条件:
-      - 排除创业板（300/301开头）
-      - 排除科创板（688开头）
-      - 排除ST股（名称含ST）
-      - 排除小市值（< 50亿）
-      - 排除亏损股（PE <= 0）
+
+    参数:
+      stocks:            股票列表
+      exclude_gem:       是否排除创业板（300/301开头）
+      exclude_star:      是否排除科创板（688开头）
+      exclude_st:        是否排除ST股（名称含ST）
+      exclude_small_cap: 是否排除小市值股
+      exclude_loss:      是否排除亏损股（PE <= 0）
+      min_market_cap_yi: 最小市值阈值（亿元），低于此值且 exclude_small_cap=True 则排除
+
+    返回:
+      过滤后的股票列表
     """
     result = []
     for s in stocks:
@@ -242,15 +256,15 @@ def filter_quality_stocks(stocks: list[dict]) -> list[dict]:
         cap = s.get("market_cap", 0)
         pe = s.get("pe", 0)
 
-        if is_gem_stock(code):
+        if exclude_gem and is_gem_stock(code):
             continue
-        if is_star_market_stock(code):
+        if exclude_star and is_star_market_stock(code):
             continue
-        if is_st_stock(name):
+        if exclude_st and is_st_stock(name):
             continue
-        if is_small_cap_stock(cap):
+        if exclude_small_cap and is_small_cap_stock(cap, min_market_cap_yi):
             continue
-        if is_loss_stock(pe):
+        if exclude_loss and is_loss_stock(pe):
             continue
 
         result.append(s)
